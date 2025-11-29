@@ -562,20 +562,21 @@ const DidYouKnowBox = () => {
 
 
 // ARENA MODE: THE W-VORTEX
-// REPLACEMENT COMPONENT: THE HIVEMIND (3D Neural Network)
+// REPLACEMENT COMPONENT: THE QUANTUM TICKER (God Candle)
 const ArenaOverlay = ({ onExit }) => {
     const canvasRef = useRef(null);
     const requestRef = useRef();
-    const [nodeCount, setNodeCount] = useState(0); // Fake UI counter
+    const [price, setPrice] = useState(420.69);
     
-    // Mutable State for Physics
+    // Mutable State
     const state = useRef({
-        nodes: [],
-        pulses: [], // Active shockwaves
-        rotation: { x: 0, y: 0 },
-        targetRotation: { x: 0, y: 0 },
+        rotation: 0,
+        verticalSpeed: 20,
+        particles: [], // Stars/debris passing by
+        lightning: [],
         mouse: { x: 0, y: 0 },
-        active: true
+        basePrice: 420.69,
+        priceMultiplier: 1.0
     });
 
     useEffect(() => {
@@ -593,31 +594,16 @@ const ArenaOverlay = ({ onExit }) => {
         canvas.width = width;
         canvas.height = height;
 
-        // --- CONFIGURATION ---
-        const NODE_COUNT = width < 768 ? 80 : 180;
-        const CONNECTION_DIST = 100;
-        const ROTATION_SPEED = 0.05;
-        
-        // --- INITIALIZE 3D NODES ---
-        // We create points on a sphere surface + some internal volume
-        for (let i = 0; i < NODE_COUNT; i++) {
-            const theta = Math.random() * Math.PI * 2;
-            const phi = Math.acos((Math.random() * 2) - 1);
-            const r = 200 + Math.random() * 200; // Radius variation
-            
-            state.current.nodes.push({
-                x: r * Math.sin(phi) * Math.cos(theta),
-                y: r * Math.sin(phi) * Math.sin(theta),
-                z: r * Math.cos(phi),
-                baseX: r * Math.sin(phi) * Math.cos(theta),
-                baseY: r * Math.sin(phi) * Math.sin(theta),
-                baseZ: r * Math.cos(phi),
-                pulse: 0, // Light up intensity
-                id: Math.random().toString(36).substr(2, 4).toUpperCase()
+        // Init Debris
+        for (let i = 0; i < 100; i++) {
+            state.current.particles.push({
+                x: Math.random() * width,
+                y: Math.random() * height,
+                z: Math.random() * 2 + 0.5, // Parallax depth
+                size: Math.random() * 2
             });
         }
 
-        // --- EVENTS ---
         const handleResize = () => {
             width = window.innerWidth;
             height = window.innerHeight;
@@ -626,21 +612,22 @@ const ArenaOverlay = ({ onExit }) => {
         };
         
         const handleMouseMove = (e) => {
-            // Map mouse to rotation angles
-            const nx = (e.clientX / width) * 2 - 1;
-            const ny = (e.clientY / height) * 2 - 1;
-            state.current.targetRotation.y = nx * 2;
-            state.current.targetRotation.x = -ny * 2;
-            state.current.mouse = { x: e.clientX, y: e.clientY };
+            // Mouse controls rotation speed
+            const center = width / 2;
+            const dist = (e.clientX - center) / center; // -1 to 1
+            state.current.rotation = dist * 0.05; // Tilt speed
         };
 
         const handleClick = () => {
-            // Spawn a pulse
+            // Click to BOOST
             if (typeof SoundEngine !== 'undefined') SoundEngine.click();
-            state.current.pulses.push({
-                r: 0,
-                speed: 15,
-                life: 1.0
+            state.current.verticalSpeed += 50; // Temporary boost
+            state.current.priceMultiplier += 0.5;
+            
+            // Add flash effect
+            state.current.lightning.push({
+                life: 1.0,
+                segments: Array.from({length: 10}).map(() => Math.random() * width)
             });
         };
 
@@ -648,131 +635,102 @@ const ArenaOverlay = ({ onExit }) => {
         window.addEventListener('mousemove', handleMouseMove);
         window.addEventListener('click', handleClick);
 
-        // --- 3D MATH HELPERS ---
-        const rotate3D = (x, y, z, rotX, rotY) => {
-            // Rotate Y
-            let cosY = Math.cos(rotY);
-            let sinY = Math.sin(rotY);
-            let x1 = x * cosY - z * sinY;
-            let z1 = z * cosY + x * sinY;
-            
-            // Rotate X
-            let cosX = Math.cos(rotX);
-            let sinX = Math.sin(rotX);
-            let y2 = y * cosX - z1 * sinX;
-            let z2 = z1 * cosX + y * sinX;
-            
-            return { x: x1, y: y2, z: z2 };
-        };
-
         // --- RENDER LOOP ---
-        const loop = () => {
-            if (!state.current.active) return;
+        const render = () => {
+            // Decay boost
+            if (state.current.verticalSpeed > 20) state.current.verticalSpeed *= 0.95;
             
-            // Fake UI Update
-            setNodeCount(prev => Math.min(prev + 11, NODE_COUNT * 442));
+            // Update Price
+            state.current.basePrice += (Math.random() * state.current.verticalSpeed * state.current.priceMultiplier) / 10;
+            setPrice(state.current.basePrice);
 
-            // Smooth Rotation
-            state.current.rotation.x += (state.current.targetRotation.x - state.current.rotation.x) * ROTATION_SPEED;
-            state.current.rotation.y += (state.current.targetRotation.y - state.current.rotation.y) * ROTATION_SPEED;
-            // Auto spin
-            state.current.rotation.y += 0.002;
-
-            ctx.fillStyle = '#000';
+            // Clear
+            ctx.fillStyle = '#050505';
             ctx.fillRect(0, 0, width, height);
 
+            // 1. Draw Background Debris (The Sense of Speed)
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            state.current.particles.forEach(p => {
+                p.y += state.current.verticalSpeed * p.z;
+                if (p.y > height) {
+                    p.y = -10;
+                    p.x = Math.random() * width;
+                }
+                // Draw streaks instead of dots for speed
+                ctx.fillRect(p.x, p.y, p.size, p.size * (state.current.verticalSpeed/5));
+            });
+
+            // 2. THE GOD CANDLE (Pseudo-3D Pillar)
+            const cw = width < 600 ? 100 : 200; // Candle Width
             const centerX = width / 2;
-            const centerY = height / 2;
             
-            // 1. Process Nodes & Project to 2D
-            const projectedNodes = state.current.nodes.map(node => {
-                // Decay pulse
-                if (node.pulse > 0) node.pulse -= 0.05;
+            ctx.save();
+            
+            // Core Glow
+            ctx.shadowBlur = 50;
+            ctx.shadowColor = '#ccff00';
+            ctx.fillStyle = '#ccff00';
+            
+            // Draw Main Body
+            // We oscillate width slightly to simulate rotation perspective
+            const perspective = Math.sin(Date.now() * 0.001) * 20; 
+            
+            // Left Edge (Green)
+            ctx.fillStyle = '#1a3300';
+            ctx.fillRect(centerX - cw - perspective, 0, cw, height);
+            
+            // Front Face (Bright Green)
+            const gradient = ctx.createLinearGradient(0, 0, width, 0);
+            gradient.addColorStop(0, '#66ff00');
+            gradient.addColorStop(0.5, '#ccff00');
+            gradient.addColorStop(1, '#66ff00');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(centerX - perspective, 0, cw + (perspective*0.1), height);
+            
+            // Right Edge (Darker)
+            ctx.fillStyle = '#1a3300';
+            ctx.fillRect(centerX + cw + (perspective*0.1), 0, 20, height);
 
-                // Rotate
-                const r = rotate3D(node.baseX, node.baseY, node.baseZ, state.current.rotation.x, state.current.rotation.y);
-                
-                // Project (Perspective)
-                const fov = 800;
-                const scale = fov / (fov + r.z + 400); // +400 pushes it back slightly
-                const x2d = (r.x * scale) + centerX;
-                const y2d = (r.y * scale) + centerY;
-
-                // Check Pulses collision
-                state.current.pulses.forEach(p => {
-                     // Simple distance check in 3D space isn't perfect but good enough visual
-                     // Actually, check against the "Pulse Radius" in 3D
-                     // Let's assume pulse originates from center (0,0,0)
-                     const distFromCenter = Math.sqrt(node.baseX**2 + node.baseY**2 + node.baseZ**2);
-                     if (Math.abs(distFromCenter - p.r) < 30) {
-                         node.pulse = 1.0;
-                     }
-                });
-
-                return { ...node, x2d, y2d, scale, z: r.z };
-            });
-
-            // 2. Sort by Z for depth (painter's algorithm)
-            projectedNodes.sort((a, b) => b.z - a.z);
-
-            // 3. Draw Connections
-            ctx.lineWidth = 1;
-            for (let i = 0; i < projectedNodes.length; i++) {
-                const n1 = projectedNodes[i];
-                // Optimization: only check nearby in array (not perfect but faster) 
-                // or just check all (expensive but N is low enough)
-                for (let j = i + 1; j < projectedNodes.length; j++) {
-                    const n2 = projectedNodes[j];
-                    const dx = n1.x2d - n2.x2d;
-                    const dy = n1.y2d - n2.y2d;
-                    const dist = Math.sqrt(dx*dx + dy*dy);
-
-                    if (dist < CONNECTION_DIST * n1.scale) {
-                        const alpha = 1 - (dist / (CONNECTION_DIST * n1.scale));
-                        // If either node is pulsing, line is bright
-                        const pulseFactor = Math.max(n1.pulse, n2.pulse);
-                        
-                        ctx.strokeStyle = pulseFactor > 0.1 
-                            ? `rgba(255, 255, 255, ${alpha})` // White hot
-                            : `rgba(204, 255, 0, ${alpha * 0.3})`; // Dim Green
-                        
-                        ctx.beginPath();
-                        ctx.moveTo(n1.x2d, n1.y2d);
-                        ctx.lineTo(n2.x2d, n2.y2d);
-                        ctx.stroke();
-                    }
-                }
-            }
-
-            // 4. Draw Nodes
-            projectedNodes.forEach(node => {
-                const size = 3 * node.scale + (node.pulse * 5);
-                ctx.fillStyle = node.pulse > 0.1 ? '#fff' : '#ccff00';
-                
+            // 3. Candle Details (Scrolling Lines)
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(0, 50, 0, 0.5)';
+            ctx.lineWidth = 2;
+            const lineSpacing = 50;
+            const offset = (Date.now() * (state.current.verticalSpeed / 10)) % lineSpacing;
+            
+            for (let y = -50; y < height; y += lineSpacing) {
                 ctx.beginPath();
-                ctx.arc(node.x2d, node.y2d, size, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Draw Text IDs for "Close" nodes
-                if (node.scale > 0.8 && node.pulse > 0.1) {
-                    ctx.font = '10px monospace';
-                    ctx.fillStyle = '#fff';
-                    ctx.fillText(node.id, node.x2d + 10, node.y2d);
-                }
-            });
-
-            // 5. Update Pulses
-            for (let i = state.current.pulses.length - 1; i >= 0; i--) {
-                const p = state.current.pulses[i];
-                p.r += p.speed;
-                p.life -= 0.01;
-                if (p.life <= 0 || p.r > 1000) state.current.pulses.splice(i, 1);
+                ctx.moveTo(centerX - cw - perspective, y + offset);
+                ctx.lineTo(centerX + cw + 50, y + offset - 20); // Slanted lines
+                ctx.stroke();
             }
 
-            requestRef.current = requestAnimationFrame(loop);
+            // 4. Lightning/Energy Effects
+            state.current.lightning.forEach((l, i) => {
+                ctx.beginPath();
+                ctx.strokeStyle = `rgba(255, 255, 255, ${l.life})`;
+                ctx.lineWidth = 3;
+                let lx = centerX;
+                let ly = 0;
+                ctx.moveTo(lx, ly);
+                
+                // Jagged line down
+                for (let j = 0; j < height; j+= 50) {
+                    lx += (Math.random() - 0.5) * 100;
+                    ctx.lineTo(lx, j);
+                }
+                ctx.stroke();
+                
+                l.life -= 0.1;
+                if (l.life <= 0) state.current.lightning.splice(i, 1);
+            });
+
+            ctx.restore();
+
+            requestRef.current = requestAnimationFrame(render);
         };
 
-        requestRef.current = requestAnimationFrame(loop);
+        requestRef.current = requestAnimationFrame(render);
 
         return () => {
             window.removeEventListener('resize', handleResize);
@@ -784,49 +742,37 @@ const ArenaOverlay = ({ onExit }) => {
     }, []);
 
     return (
-        <div className="fixed inset-0 z-[10000] bg-black cursor-crosshair overflow-hidden">
-            <canvas ref={canvasRef} className="block w-full h-full" />
+        <div className="fixed inset-0 z-[10000] bg-black cursor-crosshair overflow-hidden flex flex-col items-center justify-center">
+            <canvas ref={canvasRef} className="absolute inset-0 block w-full h-full" />
             
-            {/* UI OVERLAY */}
-            <div className="absolute top-0 left-0 w-full h-full pointer-events-none p-8 flex flex-col justify-between">
-                
-                {/* Header */}
-                <div className="flex justify-between items-start">
-                    <div>
-                        <div className="text-[var(--accent)] font-black font-anton text-2xl tracking-widest animate-pulse">
-                            THE HIVEMIND
-                        </div>
-                        <div className="text-white font-mono text-xs opacity-70">
-                            GLOBAL CONSENSUS: 100%
-                        </div>
-                    </div>
-                    <div className="text-right font-mono text-xs text-[var(--accent)]">
-                        <div>ACTIVE NODES: {nodeCount}</div>
-                        <div>LATENCY: 0ms</div>
-                    </div>
+            {/* CENTRAL HUD */}
+            <div className="relative z-20 text-center mix-blend-difference pointer-events-none">
+                <div className="text-[var(--accent)] font-mono text-xs tracking-[1em] mb-2 animate-pulse">
+                    CURRENT PRICE
                 </div>
-
-                {/* Center Message */}
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center mix-blend-difference">
-                    <div className="text-white font-mono text-xs tracking-[0.5em] mb-4 opacity-50">
-                        CLICK TO BROADCAST SIGNAL
-                    </div>
+                <div className="text-white text-6xl md:text-9xl font-black font-anton tracking-tighter shadow-xl">
+                    ${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
-
-                {/* Footer */}
-                <div className="flex justify-between items-end">
-                    <div className="font-mono text-xs text-neutral-500 max-w-xs">
-                        Connected to mainnet. You are Node #001. 
-                        Do not break the chain.
-                    </div>
-                    <button 
-                        onClick={onExit}
-                        className="pointer-events-auto border border-white text-white hover:bg-white hover:text-black px-8 py-3 font-mono font-bold tracking-widest uppercase transition-all flex items-center gap-2 backdrop-blur-md"
-                    >
-                        <Power size={18} /> DISCONNECT
-                    </button>
+                <div className="text-green-400 font-mono text-sm md:text-xl mt-4 bg-black/50 inline-block px-4 py-1">
+                    +{(price / 4.2).toFixed(0)}% (1s)
                 </div>
             </div>
+
+            {/* FLAVOR TEXT BOTTOM */}
+            <div className="absolute bottom-12 z-20 text-center pointer-events-none">
+                 <p className="text-white/50 font-mono text-xs uppercase tracking-widest animate-pulse">
+                     Target: The Moon is too low. We aim for Andromeda.
+                 </p>
+                 <p className="text-[var(--accent)] text-[10px] mt-2">CLICK TO BOOST BUYING PRESSURE</p>
+            </div>
+
+            {/* EXIT BUTTON */}
+            <button 
+                onClick={onExit}
+                className="absolute top-8 right-8 z-50 pointer-events-auto border border-white/20 text-white/50 hover:bg-white hover:text-black px-4 py-2 font-mono text-xs uppercase tracking-widest transition-all"
+            >
+                TAKE PROFITS (EXIT)
+            </button>
         </div>
     );
 };
