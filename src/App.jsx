@@ -299,16 +299,7 @@ const MOCK_TWEETS = [
     rotation: "-rotate-3",
     url: "https://x.com/solana" 
   },
-  {
-    id: 12,
-    handle: "@wealth",
-    pfp: "/pfp9.jpg",
-    comments: "5",
-    content: "Generational W",
-    likes: "67", retweets: "11", 
-    rotation: "rotate-1",
-    url: "https://x.com/wealth" 
-  },
+ 
   {
     id: 13,
     handle: "@_Shadow36",
